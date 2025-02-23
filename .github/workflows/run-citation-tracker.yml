@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # Allows manual trigger
   schedule:
     - cron: '0 8 * * 1'  # Runs every Monday at 8 AM UTC
 
@@ -27,4 +26,5 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run the citation-tracker script
-      run: python script.py  # Change this to the name of your converted Python script
+      run: |
+        jupyter nbconvert --to notebook --execute script.ipynb
