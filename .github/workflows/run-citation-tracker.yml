@@ -26,8 +26,5 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Install notebook package
-      run: pip install notebook
-
     - name: Run the citation-tracker script
       run: python script.py  # Change this to the name of your converted Python script
