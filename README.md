@@ -12,7 +12,7 @@ The goal of this project is to automate the process of collecting citation metad
 - **Sorting**: Automatically sort the citation data by the latest publication date.
 - **Export to Excel**: Export the results to an Excel file for sharing and further analysis.
 - **Visualization**: Create charts to visualize the most cited papers, sorted from high to low.
---**Automation**: Automated using GitHub Actions, which runs the script automatically every Monday at 8 AM UTC.
+- **Automation**: Automated using GitHub Actions, which runs the script automatically every Monday at 8 AM UTC.
 
 
 ## Prerequisites
