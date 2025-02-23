@@ -12,6 +12,8 @@ The goal of this project is to automate the process of collecting citation metad
 - **Sorting**: Automatically sort the citation data by the latest publication date.
 - **Export to Excel**: Export the results to an Excel file for sharing and further analysis.
 - **Visualization**: Create charts to visualize the most cited papers, sorted from high to low.
+--**Automation**: Automated using GitHub Actions, which runs the script automatically every Monday at 8 AM UTC.
+
 
 ## Prerequisites
 Before running the script, ensure that you have the following Python libraries installed:
@@ -37,6 +39,13 @@ The script generates a sorted list of papers by publication date, exports the re
 **.gitignore:** Git ignore file to prevent unnecessary files from being tracked in the repository (e.g., .ipynb_checkpoints/).
 
 **README.md:** Documentation for the project (this file).
+
+## Automation with GitHub Actions
+This project is automated using GitHub Actions, meaning the citation tracker script runs automatically every Monday at 8 AM UTC.
+
+The workflow is defined in .github/workflows/run-citation-tracker.yml.
+It fetches and updates citation data without manual intervention.
+You can also manually trigger the workflow under the "Actions" tab in the GitHub repository.
 
 ## How to Contribute
 1. Fork the repository.
