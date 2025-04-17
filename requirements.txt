@@ -19,4 +19,4 @@ jupyterlab==4.3.4
 jupyterlab_server==2.27.3
 jupyterthemes==0.20.0
 lesscpy==0.15.1
-notebook==7.3.2
+
