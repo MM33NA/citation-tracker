@@ -1,56 +1,215 @@
 name: Citation Tracker
 
 on:
+  # Run on push to main branch
   push:
-    branches: [ main ]
+    branches: [ main, master ]
+  
+  # Run on pull requests
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
+  
+  # Allow manual trigger from GitHub UI
   workflow_dispatch:
+  
+  # Run automatically every Sunday at 9 AM UTC (weekly updates)
   schedule:
     - cron: '0 9 * * 0'
 
 jobs:
   citation-tracker:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     
     steps:
-    - name: Checkout repository
+    - name: 📥 Checkout repository
       uses: actions/checkout@v4
     
-    - name: Set up Python
+    - name: 🐍 Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
         cache: 'pip'
     
-    - name: Install dependencies
+    - name: 📦 Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Create output directory
+    - name: 📁 Create output directory
       run: mkdir -p output
     
-    - name: Run citation tracker
-      run: python script.py
+    - name: 🔍 Run citation tracker
+      run: |
+        echo "Starting citation tracker..."
+        python script.py
+        echo "Citation tracker completed!"
     
-    - name: Upload results as artifacts
+    - name: 📊 Display results summary
+      run: |
+        echo "## 📊 Citation Tracker Results" >> $GITHUB_STEP_SUMMARY
+        echo "Generated on: $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f output/summary_stats.json ]; then
+          echo "### 📈 Summary Statistics" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat output/summary_stats.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### 🏆 Quick Stats" >> $GITHUB_STEP_SUMMARY
+          python3 -c "
+import json
+with open('output/summary_stats.json', 'r') as f:
+    stats = json.load(f)
+print(f'- **Total Publications:** {stats[\"total_publications\"]}')
+print(f'- **Total Citations:** {stats[\"total_citations\"]:,}')
+print(f'- **Average Citations:** {stats[\"average_citations\"]}')
+print(f'- **Most Cited Paper:** {stats[\"most_cited_count\"]} citations')
+print(f'- **Papers with 10+ Citations:** {stats[\"papers_with_10plus_citations\"]}')
+print(f'- **Papers with 50+ Citations:** {stats[\"papers_with_50plus_citations\"]}')
+          " >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ No summary statistics file found" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📁 Generated Files" >> $GITHUB_STEP_SUMMARY
+        if [ -d output ]; then
+          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          for file in output/*; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              size=$(ls -lh "$file" | awk '{print $5}')
+              echo "| $filename | $size |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+        else
+          echo "❌ No output directory found" >> $GITHUB_STEP_SUMMARY
+        fi
+    
+    - name: 📋 List generated files
+      run: |
+        echo "Generated files in output directory:"
+        if [ -d output ]; then
+          ls -la output/
+          echo ""
+          echo "File sizes:"
+          du -h output/*
+        else
+          echo "❌ No output directory found"
+        fi
+    
+    - name: ✅ Validate output files
+      run: |
+        echo "Validating generated files..."
+        
+        # Check required files exist
+        required_files=("publications.xlsx" "publications.csv" "summary_stats.json" "summary_report.txt")
+        missing_files=()
+        
+        for file in "${required_files[@]}"; do
+          if [ ! -f "output/$file" ]; then
+            missing_files+=("$file")
+          fi
+        done
+        
+        if [ ${#missing_files[@]} -eq 0 ]; then
+          echo "✅ All required files generated successfully!"
+        else
+          echo "❌ Missing files: ${missing_files[*]}"
+          exit 1
+        fi
+        
+        # Check file sizes
+        for file in output/*; do
+          if [ -f "$file" ]; then
+            size=$(stat -c%s "$file")
+            if [ $size -eq 0 ]; then
+              echo "❌ Warning: $file is empty"
+            else
+              echo "✅ $file: $(du -h "$file" | cut -f1)"
+            fi
+          fi
+        done
+    
+    - name: 📸 Show preview of results
+      run: |
+        echo "=== CITATION TRACKER PREVIEW ==="
+        if [ -f output/summary_report.txt ]; then
+          echo "📄 Summary Report (first 50 lines):"
+          head -50 output/summary_report.txt
+        fi
+        
+        if [ -f output/publications.csv ]; then
+          echo ""
+          echo "📊 Top 5 Most Cited Papers:"
+          head -6 output/publications.csv | column -t -s ','
+        fi
+    
+    - name: 📤 Upload results as artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: citation-results-${{ github.run_number }}
+        name: citation-results-${{ github.run_number }}-${{ github.run_attempt }}
         path: output/
         retention-days: 90
+        if-no-files-found: error
     
-    - name: List output files
+    - name: 💾 Commit results to repository (optional)
+      if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
       run: |
-        echo "Generated files:"
-        ls -la output/ || echo "No output directory found"
-    
-    - name: Show basic statistics
-      run: |
-        if [ -f output/publications.csv ]; then
-          echo "Publications file created successfully"
-          wc -l output/publications.csv
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Create a results directory with timestamp
+        timestamp=$(date +"%Y%m%d_%H%M%S")
+        results_dir="results/$timestamp"
+        mkdir -p "$results_dir"
+        
+        # Copy output files to results directory
+        cp -r output/* "$results_dir/"
+        
+        # Add files to git
+        git add "$results_dir"
+        
+        # Check if there are changes to commit
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
         else
-          echo "No publications.csv found"
+          git commit -m "📊 Update citation data - $(date '+%Y-%m-%d %H:%M:%S')"
+          git push
+          echo "✅ Results committed to repository in $results_dir"
         fi
+    
+    - name: 🎉 Workflow completion
+      run: |
+        echo "=========================================="
+        echo "🎉 Citation Tracker Workflow Completed!"
+        echo "=========================================="
+        echo "📅 Run Date: $(date)"
+        echo "🔢 Run Number: ${{ github.run_number }}"
+        echo "🌟 Workflow: ${{ github.workflow }}"
+        echo "📋 Triggered by: ${{ github.event_name }}"
+        if [ -f output/summary_stats.json ]; then
+          echo "📊 Results: Available in artifacts and summary"
+        else
+          echo "❌ Results: Failed to generate summary"
+        fi
+        echo "=========================================="
+    
+    # Optional: Send notification on failure
+    - name: 📧 Notify on failure
+      if: failure()
+      run: |
+        echo "## ❌ Citation Tracker Failed" >> $GITHUB_STEP_SUMMARY
+        echo "The citation tracker workflow failed. Please check the logs for details." >> $GITHUB_STEP_SUMMARY
+        echo "**Failed at:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "**Workflow:** ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Run Number:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+
+# Optional: Add environment variables if needed
+env:
+  PYTHONUNBUFFERED: 1
+  MATPLOTLIB_BACKEND: Agg
