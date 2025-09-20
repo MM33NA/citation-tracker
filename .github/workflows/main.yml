@@ -1,0 +1,82 @@
+name: Citation Tracker
+
+on:
+  # Run on push to main branch
+  push:
+    branches: [ main ]
+  
+  # Run on pull requests
+  pull_request:
+    branches: [ main ]
+  
+  # Allow manual trigger
+  workflow_dispatch:
+  
+  # Run weekly on Sundays at 9 AM UTC
+  schedule:
+    - cron: '0 9 * * 0'
+
+jobs:
+  citation-tracker:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Create output directory
+      run: mkdir -p output
+    
+    - name: Run citation tracker
+      run: python script.py
+    
+    - name: Upload results as artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: citation-results-${{ github.run_number }}
+        path: output/
+        retention-days: 90
+    
+    - name: Display summary
+      run: |
+        echo "## Citation Tracker Results" >> $GITHUB_STEP_SUMMARY
+        echo "Generated on: $(date)" >> $GITHUB_STEP_SUMMARY
+        if [ -f output/publications.csv ]; then
+          echo "### Summary Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          python -c "
+import pandas as pd
+try:
+    df = pd.read_csv('output/publications.csv', index_col=0)
+    print(f'Total publications: {len(df)}')
+    print(f'Total citations: {df[\"Citations\"].sum()}')
+    print(f'Average citations: {df[\"Citations\"].mean():.1f}')
+    print(f'Most cited paper: {df.iloc[0][\"Citations\"]} citations')
+except Exception as e:
+    print(f'Error reading results: {e}')
+          "
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "No results file generated" >> $GITHUB_STEP_SUMMARY
+        fi
+    
+    # Optional: Commit results back to repository
+    # Uncomment if you want to store results in the repo
+    # - name: Commit results
+    #   run: |
+    #     git config --local user.email "action@github.com"
+    #     git config --local user.name "GitHub Action"
+    #     git add output/
+    #     git diff --staged --quiet || git commit -m "Update citation data - $(date)"
+    #     git push
