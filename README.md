@@ -1,58 +1,100 @@
-# Citation Tracker for Journal Publications
+# Citation Tracker
 
-## Overview
-The **Citation Tracker for Journal Publications** is an automated tool designed to help researchers and academics efficiently track citations for their published papers. By using DOI numbers, the tracker collects metadata about each publication and sorts it by the latest published date. This tool simplifies the citation management process and allows users to visualize and export citation data in an easily shareable format.
+An automated pipeline that tracks citation counts for my publications, updates
+weekly, and displays the results as a live dashboard.
 
-## Purpose
-The goal of this project is to automate the process of collecting citation metadata for academic papers, sorting the results by the most recent publications, and enabling researchers to track their paper citations more effectively.
+**Live dashboard:** https://mm33na.github.io/citation-tracker/
 
-## Features
-- **Fetch Metadata**: Collect citation metadata for multiple DOIs.
-- **Data Storage**: Store the metadata in a structured format for easy analysis.
-- **Sorting**: Automatically sort the citation data by the latest publication date.
-- **Export to Excel**: Export the results to an Excel file for sharing and further analysis.
-- **Visualization**: Create charts to visualize the most cited papers, sorted from high to low.
-- **Automation**: Automated using GitHub Actions, which runs the script automatically every Monday at 8 AM UTC.
+## What it does
 
+1. **Discovers publications automatically** by querying the [CrossRef API](https://api.crossref.org/) for every work linked to my ORCID iD (`0000-0003-2830-7226`) — no manual DOI list to maintain.
+2. **Cross-checks citation counts** against two sources:
+   - **CrossRef** — counts citations from publishers that deposit reference lists with CrossRef's Cited-by service.
+   - **[Semantic Scholar](https://www.semanticscholar.org/)** — broader coverage, since it also indexes preprints and grey literature that CrossRef doesn't track.
+3. **Runs automatically every Monday** via GitHub Actions, and commits the refreshed data back to the repo.
+4. **Publishes a live dashboard** via GitHub Pages, reading the latest data directly — no rebuild step needed.
 
-## Prerequisites
-Before running the script, ensure that you have the following Python libraries installed:
-- `requests`
-- `pandas`
-- `matplotlib` (optional for charts).
+## Why two citation counts, and why not just use Google Scholar?
 
-## Usage
+Google Scholar has the most complete citation coverage of any source, but it
+has no public API — there's no reliable, terms-of-service-compliant way to
+pull its numbers into an automated pipeline. CrossRef and Semantic Scholar
+both offer free public APIs, so this project uses them as complementary,
+programmatically-accessible sources:
 
-**1. Clone the Repository:** Clone the repository to your local machine.
+- **CrossRef** is authoritative but undercounts anything not indexed with a
+  DOI (reports, preprints, grey literature).
+- **Semantic Scholar** catches more of that grey literature, at the cost of
+  being a secondary, less-curated source.
 
-**2. Add DOI Numbers:** Update the script with the DOIs of the papers you want to track.
+Neither fully matches Google Scholar's count — that's expected. This project
+isn't a Scholar replacement; it's a self-hosted, automatable, brandable
+alternative that can be embedded elsewhere and versioned over time, which
+Scholar's profile page doesn't offer.
 
-**3. Run the Script:** Execute the Python script to fetch citation metadata, process the data, and export it to an Excel file.
+## Project structure
 
-## Example Output
-The script generates a sorted list of papers by publication date, exports the results to an Excel file, and optionally creates charts to visualize citation trends
+```
+.
+├── citation_tracker.py       # Main script: fetch, enrich, export
+├── requirements.txt          # Python dependencies
+├── index.html                # Dashboard (GitHub Pages)
+├── output/
+│   ├── publications.csv       # Full publication + citation data
+│   ├── publications.xlsx      # Same data, Excel format
+│   └── citation_chart.png     # Static chart snapshot
+└── .github/workflows/
+    └── citation-tracker.yml   # Weekly automation
+```
 
-## File Descriptions
+## How it works
 
-**script.ipynb:** Main script for fetching metadata, processing data, and exporting results.
+`citation_tracker.py`:
+1. Queries `https://api.crossref.org/works?filter=orcid:{ORCID_ID}` with
+   cursor-based pagination to retrieve every linked work.
+2. Parses each result for title, authors, publication date, DOI, and
+   CrossRef's citation count.
+3. Looks up each DOI on Semantic Scholar's Graph API for a second citation
+   count (rate-limited to one request per second to stay within the
+   unauthenticated quota).
+4. Exports the combined data to `output/publications.csv` and `.xlsx`, and
+   renders a static bar chart of the top 20 by CrossRef citation count.
 
-**.gitignore:** Git ignore file to prevent unnecessary files from being tracked in the repository (e.g., .ipynb_checkpoints/).
+`index.html` reads `output/publications.csv` client-side (via PapaParse) and
+renders:
+- Summary stats (total publications, total citations, average, most recent)
+- An interactive bar chart of the top 12 most-cited papers
+- A searchable, sortable card list of every publication, showing both
+  citation counts side by side
 
-**README.md:** Documentation for the project (this file).
+`.github/workflows/citation-tracker.yml` runs the script every Monday at
+06:00 UTC (or on-demand via the Actions tab → "Run workflow"), then commits
+any changed output files back to the repo — which the dashboard picks up
+automatically on next page load.
 
-## Automation with GitHub Actions
-This project is automated using GitHub Actions, meaning the citation tracker script runs automatically every Monday at 8 AM UTC.
+## Running it locally
 
-The workflow is defined in .github/workflows/run-citation-tracker.yml.
-It fetches and updates citation data without manual intervention.
-You can also manually trigger the workflow under the "Actions" tab in the GitHub repository.
+```bash
+pip install -r requirements.txt
+python citation_tracker.py
+```
 
-## How to Contribute
-1. Fork the repository.
-2. Create a new branch for your feature or bug fix.
-3. Commit your changes.
-4. Push your changes to your forked repository.
-5. Submit a pull request with a description of the changes you've made.
+Before running, set `CONTACT_EMAIL` near the top of `citation_tracker.py` to
+your real email — CrossRef's "polite pool" gives faster, more reliable
+responses to requests that identify a contact.
 
-## License
-This project is licensed under the MIT License. See the **LICENSE** file for more details.
+## Setup notes
+
+- **GitHub Pages**: Settings → Pages → Source → deploy from `main`, `/ (root)`.
+- **Workflow permissions**: the workflow needs `contents: write` to commit
+  output back to the repo (already configured in the workflow file).
+- **ORCID coverage caveat**: this only finds works where a publisher has
+  actually linked the DOI to my ORCID iD in CrossRef's metadata. Older
+  publications (particularly pre-2018) may be missing if the publisher never
+  backfilled that link — worth a periodic manual spot-check against a known
+  publication list.
+
+## Data sources
+
+- [CrossRef REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/)
+- [Semantic Scholar Academic Graph API](https://api.semanticscholar.org/api-docs/graph)
