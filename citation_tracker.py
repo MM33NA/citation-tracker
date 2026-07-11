@@ -8,6 +8,7 @@ Fixed for GitHub Actions - No hardcoded paths
 """
 
 import os
+import time
 import pandas as pd
 import requests
 from datetime import datetime
@@ -71,6 +72,35 @@ def fetch_works_by_orcid(orcid_id):
     return all_items
 
 
+def fetch_semantic_scholar_citations(doi, pause=1.0):
+    """
+    Look up a paper's citation count on Semantic Scholar by DOI.
+    Semantic Scholar indexes preprints, grey literature, and non-DOI'd
+    proceedings more broadly than CrossRef, so its count is often higher.
+    Returns an int, or None if not found / request failed.
+    """
+    if not doi:
+        return None
+
+    url = f'https://api.semanticscholar.org/graph/v1/paper/DOI:{doi}'
+    params = {'fields': 'citationCount'}
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        time.sleep(pause)  # be polite to the unauthenticated rate limit
+
+        if response.status_code == 429:
+            print(f"Rate limited by Semantic Scholar for DOI {doi}, skipping")
+            return None
+        if response.status_code != 200:
+            return None
+
+        data = response.json()
+        return data.get('citationCount')
+    except requests.RequestException as e:
+        print(f"Semantic Scholar lookup failed for {doi}: {e}")
+        return None
+
+
 def parse_work_item(item):
     """Convert a raw CrossRef work item into our flat metadata dict."""
     doi = item.get('DOI', '')
@@ -127,6 +157,16 @@ if not raw_items:
 
 metadata_list = [parse_work_item(item) for item in raw_items]
 
+# Enrich with Semantic Scholar citation counts (broader coverage than CrossRef,
+# since it also indexes preprints and grey literature)
+print("Cross-checking citation counts against Semantic Scholar...")
+for i, record in enumerate(metadata_list, 1):
+    doi_link = record.get('DOI link', '')
+    doi = doi_link.replace('https://doi.org/', '') if doi_link != 'No DOI' else None
+    s2_count = fetch_semantic_scholar_citations(doi)
+    record['Citations (Semantic Scholar)'] = s2_count if s2_count is not None else 'N/A'
+    print(f"  {i}/{len(metadata_list)}: {doi or 'no DOI'} -> {record['Citations (Semantic Scholar)']}")
+
 # Create output directory
 os.makedirs('output', exist_ok=True)
 
@@ -153,7 +193,7 @@ print(f"Average citations: {df['Citations'].mean():.1f}")
 if len(df) > 0:
     df_chart = df.head(20).copy()
     df_chart['Title_Short'] = df_chart['Title'].apply(
-        lambda x: textwrap.shorten(str(x), width=60, placeholder='...')
+        lambda x: textwrap.shorten(str(x), width=100, placeholder='...')
     )
     df_chart = df_chart.sort_values(by='Citations', ascending=True)
 

@@ -144,7 +144,7 @@
     border-radius:4px;
     padding:24px 24px 8px;
   }
-  #chartCanvasWrap{position:relative;}
+  #chartCanvasWrap{position:relative;width:100%;}
 
   /* ---- Table controls ---- */
   .controls{
@@ -294,12 +294,12 @@
   </div>
 
   <div class="section-head">
-    <h2>Top 20 by Citation Count</h2>
+    <h2>Top 12 by Citation Count</h2>
     <span class="tag">crossref</span>
   </div>
   <div class="chart-card">
     <div id="chartCanvasWrap">
-      <canvas id="citeChart" height="360"></canvas>
+      <canvas id="citeChart"></canvas>
     </div>
   </div>
 
@@ -365,9 +365,13 @@ function render(){
     const link = (r['DOI link'] && r['DOI link'] !== 'No DOI')
       ? `<a href="${r['DOI link']}" target="_blank" rel="noopener">${r.Title}</a>`
       : r.Title;
+    const s2 = r['Citations (Semantic Scholar)'];
+    const s2Note = (s2 !== undefined && s2 !== null && s2 !== 'N/A')
+      ? `<span style="display:block;font-size:9px;color:var(--ink-soft);margin-top:2px;">S2: ${s2}</span>`
+      : '';
     card.innerHTML = `
       <div class="title">${link}</div>
-      <div class="cite"><span class="n">${r.Citations ?? 0}</span><span class="l">Cites</span></div>
+      <div class="cite"><span class="n">${r.Citations ?? 0}</span><span class="l">Cites</span>${s2Note}</div>
       <div class="meta">${r.Authors} &middot; ${fmtDate(r['Published Date'])}</div>
     `;
     list.appendChild(card);
@@ -376,31 +380,76 @@ function render(){
   document.getElementById('visibleCount').textContent = `${rows.length} shown`;
 }
 
+function wrapLabel(text, maxChars){
+  const words = text.split(' ');
+  const lines = [];
+  let cur = '';
+  for(const w of words){
+    const candidate = cur ? cur + ' ' + w : w;
+    if(candidate.length <= maxChars){
+      cur = candidate;
+    } else {
+      if(cur) lines.push(cur);
+      cur = w;
+    }
+    if(lines.length === 2) break;
+  }
+  if(lines.length < 2 && cur) lines.push(cur);
+  // if there's leftover text beyond two lines, mark the second line truncated
+  const consumed = lines.join(' ').length;
+  if(consumed < text.length && lines.length === 2){
+    lines[1] = lines[1].replace(/.{0,1}$/, '') + '…';
+  }
+  return lines;
+}
+
 function drawChart(){
-  const top20 = [...RECORDS]
+  const showCount = 12; // fewer bars = each one gets real breathing room
+  const top = [...RECORDS]
     .sort((a,b)=>(b.Citations||0)-(a.Citations||0))
-    .slice(0,20)
+    .slice(0,showCount)
     .reverse();
 
-  const ctx = document.getElementById('citeChart').getContext('2d');
+  const perBarHeight = 46;
+  const wrap = document.getElementById('chartCanvasWrap');
+  wrap.style.height = (top.length * perBarHeight + 40) + 'px';
+
+  const canvas = document.getElementById('citeChart');
+  const ctx = canvas.getContext('2d');
   new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: top20.map(r => r.Title.length > 46 ? r.Title.slice(0,46)+'…' : r.Title),
+      labels: top.map(r => wrapLabel(r.Title, 34)),
       datasets: [{
-        data: top20.map(r => r.Citations || 0),
-        backgroundColor: top20.map((r,i)=> i === top20.length-1 ? '#B8863B' : '#3F7C6B'),
-        borderRadius: 2,
-        maxBarThickness: 18
+        data: top.map(r => r.Citations || 0),
+        backgroundColor: top.map((r,i)=> i === top.length-1 ? '#B8863B' : '#3F7C6B'),
+        borderRadius: 3,
+        barPercentage: 0.65,
+        categoryPercentage: 0.8
       }]
     },
     options: {
       indexAxis: 'y',
       responsive: true,
-      plugins: { legend: { display:false } },
+      maintainAspectRatio: false,
+      layout: { padding: { right: 24 } },
+      plugins: {
+        legend: { display:false },
+        tooltip: {
+          callbacks: {
+            title: (items) => top[items[0].dataIndex].Title
+          }
+        }
+      },
       scales: {
-        x: { grid:{color:'#C8CBC2'}, ticks:{font:{family:'IBM Plex Mono',size:10}} },
-        y: { grid:{display:false}, ticks:{font:{family:'Inter',size:11}} }
+        x: {
+          grid:{color:'#DCDED7'},
+          ticks:{font:{family:'IBM Plex Mono',size:10}, precision:0}
+        },
+        y: {
+          grid:{display:false},
+          ticks:{font:{family:'Inter',size:12}, color:'#1B2A4A'}
+        }
       }
     }
   });
