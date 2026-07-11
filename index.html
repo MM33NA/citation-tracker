@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Publication Record — Citation Index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --ink: #1B2A4A;
+    --ink-soft: #445372;
+    --paper: #ECEEE9;
+    --card: #F7F7F3;
+    --teal: #3F7C6B;
+    --teal-dim: #DCE7E2;
+    --gold: #B8863B;
+    --line: #C8CBC2;
+    --shadow: rgba(27,42,74,0.10);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+    line-height:1.5;
+  }
+  .wrap{max-width:980px;margin:0 auto;padding:56px 24px 100px;}
+
+  /* ---- Hero / stamp ---- */
+  .hero{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:32px;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:28px;
+    margin-bottom:8px;
+    flex-wrap:wrap;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--teal);
+    margin:0 0 10px;
+  }
+  h1{
+    font-family:'Spectral',serif;
+    font-weight:600;
+    font-size:clamp(28px,4vw,42px);
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .subtitle{
+    font-size:14px;
+    color:var(--ink-soft);
+    margin-top:8px;
+    max-width:46ch;
+  }
+  .stamp{
+    position:relative;
+    flex-shrink:0;
+    border:3px solid var(--gold);
+    color:var(--gold);
+    border-radius:6px;
+    padding:14px 22px;
+    transform:rotate(-4deg);
+    text-align:center;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .stamp .num{
+    font-size:36px;
+    font-weight:600;
+    line-height:1;
+    display:block;
+  }
+  .stamp .lbl{
+    font-size:10px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    display:block;
+    margin-top:4px;
+  }
+
+  /* ---- Stat rail ---- */
+  .rail{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    margin:32px 0 48px;
+  }
+  .rail-item{
+    background:var(--card);
+    padding:18px 20px;
+  }
+  .rail-item .k{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .rail-item .v{
+    font-family:'Spectral',serif;
+    font-size:26px;
+    font-weight:600;
+    margin-top:4px;
+    color:var(--ink);
+  }
+
+  /* ---- Section headers ---- */
+  .section-head{
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    margin:56px 0 20px;
+  }
+  .section-head h2{
+    font-family:'Spectral',serif;
+    font-size:20px;
+    font-weight:600;
+    margin:0;
+  }
+  .section-head .tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--teal);
+    border:1px solid var(--teal);
+    border-radius:20px;
+    padding:2px 10px;
+  }
+
+  /* ---- Chart ---- */
+  .chart-card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:24px 24px 8px;
+  }
+  #chartCanvasWrap{position:relative;}
+
+  /* ---- Table controls ---- */
+  .controls{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:16px;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+  }
+  #search{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    padding:9px 14px;
+    border:1px solid var(--line);
+    border-radius:4px;
+    background:var(--card);
+    color:var(--ink);
+    min-width:240px;
+  }
+  #search:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .count-note{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+
+  /* ---- Index cards (table) ---- */
+  .cards{display:flex;flex-direction:column;gap:10px;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-left:4px solid var(--teal);
+    border-radius:3px;
+    padding:14px 18px;
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:6px 20px;
+    align-items:start;
+  }
+  .card.top{border-left-color:var(--gold);}
+  .card .title{
+    font-family:'Spectral',serif;
+    font-size:16px;
+    font-weight:600;
+    line-height:1.35;
+  }
+  .card .title a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line);}
+  .card .title a:hover{border-color:var(--ink);}
+  .card .meta{
+    font-size:13px;
+    color:var(--ink-soft);
+    grid-column:1;
+  }
+  .card .cite{
+    grid-column:2;
+    grid-row:1 / span 2;
+    align-self:center;
+    font-family:'IBM Plex Mono',monospace;
+    text-align:center;
+    min-width:64px;
+  }
+  .card .cite .n{font-size:22px;font-weight:600;color:var(--ink);display:block;}
+  .card .cite .l{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);}
+
+  .sort-row{
+    display:flex;
+    gap:6px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+  }
+  .sort-btn{
+    background:none;
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+    padding:6px 12px;
+    border-radius:20px;
+    cursor:pointer;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+  }
+  .sort-btn.active{
+    background:var(--ink);
+    color:var(--paper);
+    border-color:var(--ink);
+  }
+
+  .status{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--ink-soft);
+    padding:40px 0;
+    text-align:center;
+  }
+
+  footer{
+    margin-top:64px;
+    padding-top:20px;
+    border-top:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+
+  @media (max-width:600px){
+    .hero{flex-direction:column;align-items:flex-start;}
+    .rail{grid-template-columns:1fr;}
+    .card{grid-template-columns:1fr;}
+    .card .cite{grid-column:1;grid-row:auto;text-align:left;margin-top:6px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div>
+      <p class="eyebrow">Citation Index &middot; Auto-updated weekly</p>
+      <h1>Publication Record</h1>
+      <p class="subtitle">Tracked automatically via ORCID against CrossRef's public record. Refreshed every Monday.</p>
+    </div>
+    <div class="stamp">
+      <span class="num" id="statCitations">—</span>
+      <span class="lbl">Total Citations</span>
+    </div>
+  </div>
+
+  <div class="rail">
+    <div class="rail-item">
+      <div class="k">Publications</div>
+      <div class="v" id="statPubs">—</div>
+    </div>
+    <div class="rail-item">
+      <div class="k">Avg. Citations</div>
+      <div class="v" id="statAvg">—</div>
+    </div>
+    <div class="rail-item">
+      <div class="k">Most Recent</div>
+      <div class="v" id="statRecent" style="font-size:16px;">—</div>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>Top 20 by Citation Count</h2>
+    <span class="tag">crossref</span>
+  </div>
+  <div class="chart-card">
+    <div id="chartCanvasWrap">
+      <canvas id="citeChart" height="360"></canvas>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>Full Record</h2>
+    <span class="tag" id="tableTag">— entries</span>
+  </div>
+  <div class="controls">
+    <input id="search" type="text" placeholder="Search title or author...">
+    <span class="count-note" id="visibleCount"></span>
+  </div>
+  <div class="sort-row">
+    <button class="sort-btn active" data-sort="citations">Sort: Citations</button>
+    <button class="sort-btn" data-sort="date">Sort: Date</button>
+    <button class="sort-btn" data-sort="title">Sort: Title</button>
+  </div>
+  <div class="cards" id="cardList">
+    <div class="status">Loading publications.csv…</div>
+  </div>
+
+  <footer>
+    <span>Source: CrossRef API, filtered by ORCID 0000-0003-2830-7226</span>
+    <span id="lastRun"></span>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const CSV_PATH = './output/publications.csv';
+let RECORDS = [];
+let currentSort = 'citations';
+
+function fmtDate(d){
+  if(!d || d === 'No Date Available') return 'Undated';
+  return d;
+}
+
+function render(){
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  let rows = RECORDS.filter(r =>
+    r.Title.toLowerCase().includes(q) || r.Authors.toLowerCase().includes(q)
+  );
+
+  rows.sort((a,b)=>{
+    if(currentSort === 'citations') return (b.Citations||0) - (a.Citations||0);
+    if(currentSort === 'date') return new Date(b['Published Date']) - new Date(a['Published Date']);
+    if(currentSort === 'title') return a.Title.localeCompare(b.Title);
+    return 0;
+  });
+
+  const maxCite = Math.max(...RECORDS.map(r=>r.Citations||0), 1);
+  const list = document.getElementById('cardList');
+  list.innerHTML = '';
+
+  if(rows.length === 0){
+    list.innerHTML = '<div class="status">No matches.</div>';
+  }
+
+  rows.forEach(r=>{
+    const isTop = r.Citations === maxCite && maxCite > 0;
+    const card = document.createElement('div');
+    card.className = 'card' + (isTop ? ' top' : '');
+    const link = (r['DOI link'] && r['DOI link'] !== 'No DOI')
+      ? `<a href="${r['DOI link']}" target="_blank" rel="noopener">${r.Title}</a>`
+      : r.Title;
+    card.innerHTML = `
+      <div class="title">${link}</div>
+      <div class="cite"><span class="n">${r.Citations ?? 0}</span><span class="l">Cites</span></div>
+      <div class="meta">${r.Authors} &middot; ${fmtDate(r['Published Date'])}</div>
+    `;
+    list.appendChild(card);
+  });
+
+  document.getElementById('visibleCount').textContent = `${rows.length} shown`;
+}
+
+function drawChart(){
+  const top20 = [...RECORDS]
+    .sort((a,b)=>(b.Citations||0)-(a.Citations||0))
+    .slice(0,20)
+    .reverse();
+
+  const ctx = document.getElementById('citeChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top20.map(r => r.Title.length > 46 ? r.Title.slice(0,46)+'…' : r.Title),
+      datasets: [{
+        data: top20.map(r => r.Citations || 0),
+        backgroundColor: top20.map((r,i)=> i === top20.length-1 ? '#B8863B' : '#3F7C6B'),
+        borderRadius: 2,
+        maxBarThickness: 18
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: { legend: { display:false } },
+      scales: {
+        x: { grid:{color:'#C8CBC2'}, ticks:{font:{family:'IBM Plex Mono',size:10}} },
+        y: { grid:{display:false}, ticks:{font:{family:'Inter',size:11}} }
+      }
+    }
+  });
+}
+
+function computeStats(){
+  const total = RECORDS.reduce((s,r)=>s+(r.Citations||0),0);
+  const avg = RECORDS.length ? (total/RECORDS.length).toFixed(1) : '0';
+  const mostRecent = [...RECORDS]
+    .filter(r=>r['Published Date'] && r['Published Date'] !== 'No Date Available')
+    .sort((a,b)=> new Date(b['Published Date']) - new Date(a['Published Date']))[0];
+
+  document.getElementById('statCitations').textContent = total;
+  document.getElementById('statPubs').textContent = RECORDS.length;
+  document.getElementById('statAvg').textContent = avg;
+  document.getElementById('statRecent').textContent = mostRecent
+    ? (mostRecent.Title.length > 34 ? mostRecent.Title.slice(0,34)+'…' : mostRecent.Title)
+    : '—';
+  document.getElementById('tableTag').textContent = `${RECORDS.length} entries`;
+}
+
+Papa.parse(CSV_PATH, {
+  download: true,
+  header: true,
+  dynamicTyping: true,
+  skipEmptyLines: true,
+  complete: function(results){
+    RECORDS = results.data.filter(r => r.Title);
+    if(RECORDS.length === 0){
+      document.getElementById('cardList').innerHTML =
+        '<div class="status">No publications found yet — has the tracker run at least once?</div>';
+      return;
+    }
+    computeStats();
+    drawChart();
+    render();
+  },
+  error: function(){
+    document.getElementById('cardList').innerHTML =
+      '<div class="status">Could not load publications.csv. Make sure GitHub Pages is serving this repo and the tracker has run at least once.</div>';
+  }
+});
+
+document.getElementById('search').addEventListener('input', render);
+document.querySelectorAll('.sort-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentSort = btn.dataset.sort;
+    render();
+  });
+});
+
+document.getElementById('lastRun').textContent = `Page loaded ${new Date().toLocaleDateString()}`;
+</script>
+</body>
+</html>
