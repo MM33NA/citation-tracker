@@ -22,7 +22,7 @@ matplotlib.use('Agg')
 ORCID_ID = '0000-0003-2830-7226'
 # CrossRef's "polite pool" gives faster/more reliable responses if you
 # include a contact email in the User-Agent. Put your real email here.
-CONTACT_EMAIL = 'your-email@domain.com'
+CONTACT_EMAIL = 'mmaharjan039@gmail.com'
 USER_AGENT = f'Citation-Tracker/2.0 (mailto:{CONTACT_EMAIL})'
 ROWS_PER_PAGE = 100
 
